@@ -1,18 +1,9 @@
-<!--
-=============================================================================
-[部署指南 - GitHub Pages]
-1. 在 GitHub 專案中，編輯 index.html
-2. 將本段所有程式碼完全取代舊有內容
-3. 點擊 "Commit changes"
-4. 本版本包含精確物理尺寸排版與雙模組 (通用/神秘版本)
-=============================================================================
--->
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>護理標籤智慧排版系統</title>
+    <title>ＳＩＣＵ專用病人貼紙列印系統</title>
     
     <!-- 引入 JsBarcode 用於神秘版本的條碼生成 -->
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
@@ -23,8 +14,9 @@
            ========================================================================== */
         :root {
             --primary-color: #0056b3;
-            --sicu-color: #6f42c1; /* 神秘版本使用紫色 */
+            --sicu-color: #6f42c1; 
             --success-color: #28a745;
+            --danger-color: #dc3545;
             --bg-color: #f4f7f6;
             --card-bg: #ffffff;
             --border-radius: 8px;
@@ -44,7 +36,52 @@
         .btn-print { background-color: var(--success-color); }
         .btn-print:disabled { background-color: #6c757d; cursor: not-allowed; }
 
-        #errorMsg { color: #dc3545; font-weight: bold; margin-bottom: 1rem; display: none; }
+        #errorMsg { color: var(--danger-color); font-weight: bold; margin-bottom: 1rem; display: none; }
+
+        /* 預覽區塊樣式 */
+        #previewContainer {
+            display: none;
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            background-color: #e9ecef;
+            border-radius: var(--border-radius);
+            text-align: center;
+            border: 2px dashed #adb5bd;
+        }
+        #previewContainer h3 { margin-bottom: 1rem; color: #495057; font-size: 1.1rem; }
+        .preview-box {
+            display: inline-flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background: white;
+            padding: 10px;
+            border: 1px solid #ccc;
+            width: 52.5mm; /* 模擬實體寬度 */
+            min-height: 21.214mm; /* 模擬實體高度 */
+            box-shadow: 0 2px 5px rgba(0,0,0,0.05);
+        }
+
+        /* 懸浮警示視窗樣式 (Modal) */
+        .modal-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.6);
+            display: none; justify-content: center; align-items: center;
+            z-index: 1000;
+        }
+        .modal-content {
+            background: white; padding: 2.5rem; border-radius: 12px;
+            text-align: center; max-width: 450px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+            animation: popIn 0.3s ease-out;
+        }
+        @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        .modal-content p {
+            color: var(--danger-color); font-size: 1.2rem; font-weight: bold;
+            line-height: 1.6; margin-bottom: 1.5rem; white-space: pre-line;
+        }
+        .btn-modal { background-color: var(--sicu-color); width: 50%; }
+        .btn-modal:hover { background-color: #59339d; }
 
         /* ==========================================================================
            2. A4 列印矩陣樣式 (精確物理對齊與切割)
@@ -52,44 +89,35 @@
         #printArea { display: none; }
 
         @media print {
-            /* 1. 設定紙張大小並強制消除所有瀏覽器預設白邊 */
             @page {
                 size: A4 portrait;
                 margin: 0; 
             }
             body { background: white; margin: 0; padding: 0; }
-            .app-container { display: none !important; }
+            /* 隱藏所有非列印元素 */
+            .app-container, .modal-overlay { display: none !important; }
             #printArea, #printArea * { visibility: visible; }
 
-            /* 2. 絕對定位與 CSS Grid 物理尺寸切割 */
             #printArea {
                 display: grid;
                 position: absolute;
                 top: 0; left: 0;
-                /* A4 寬度 210mm，分成 4 欄，每欄嚴格等於 52.5mm */
                 grid-template-columns: repeat(4, 52.5mm);
-                /* A4 高度 297mm，分成 14 列，每列嚴格等於 21.214mm */
                 grid-template-rows: repeat(14, 21.214mm);
-                /* 移除任何間距，完全依賴上述物理尺寸 */
                 gap: 0;
                 width: 210mm;
                 height: 297mm;
-                /* 若實體貼紙整張有偏移，可微調下方的 padding，例如上方偏 1mm 則加上 padding-top: 1mm; */
                 box-sizing: border-box;
             }
 
-            /* 3. 貼紙單元格：內容絕對置中對齊 */
             .label-cell {
                 display: flex;
                 flex-direction: column;
-                /* 【對齊方式註解 1】 justify-content: center; 讓內容在垂直 Y 軸保持正中央 */
                 justify-content: center; 
-                /* 【對齊方式註解 2】 align-items: center; 讓內容在水平 X 軸保持正中央 */
                 align-items: center;     
                 width: 100%;
                 height: 100%;
                 background-color: white;
-                /* 邊界保護：稍微向內縮 1mm，避免印表機誤差切到文字 */
                 padding: 1mm;
                 box-sizing: border-box;
                 overflow: hidden;
@@ -97,7 +125,7 @@
 
             .print-text {
                 font-family: 'Microsoft JhengHei', sans-serif;
-                font-size: 13px; /* 適當大小確保能塞入小方格 */
+                font-size: 13px; 
                 font-weight: 900;
                 line-height: 1.4;
                 color: black;
@@ -107,7 +135,7 @@
 
             .print-barcode {
                 max-width: 90%;
-                height: 8mm !important; /* 強制控制高度避免撐開網格 */
+                height: 8mm !important; 
                 margin-top: 1px;
             }
         }
@@ -115,13 +143,21 @@
 </head>
 <body>
 
+    <!-- 懸浮警示視窗 -->
+    <div class="modal-overlay" id="customModal">
+        <div class="modal-content">
+            <p id="modalText"></p>
+            <button class="btn-modal" onclick="closeModal()">我知道了</button>
+        </div>
+    </div>
+
     <div class="app-container">
-        <h1>臨床標籤轉換系統</h1>
-        <p style="color:#666; margin-bottom: 1rem;">將 NIS 資料貼入下方。通用版產生滿版 56 格純文字；神秘版僅產生 4 格含條碼與床號的標籤。</p>
+        <h1>ＳＩＣＵ專用病人貼紙列印系統</h1>
+        <p style="color:#666; margin-bottom: 1rem;">將 NIS 資料貼入下方。通用版產生滿版 56 格純文字；神秘版產生前 4 格含條碼與床號，後 52 格為通用版標籤。</p>
         
         <textarea id="inputText" spellcheck="false">
-01234567 劉秉勳
-床號： SIU28
+01234567 王大明
+床號： SIU13
 ID： A123456780
 生日： 2000-08-15, 民國90年08月05日
 81 years old male
@@ -131,9 +167,16 @@ ID： A123456780
         <div id="errorMsg"></div>
 
         <div class="btn-group">
-            <button class="btn-general" onclick="processData('GENERAL')">轉換 (通用版 56格)</button>
-            <button class="btn-mystery" onclick="processData('MYSTERY')">轉換 (神秘版 4格)</button>
-            <button class="btn-print" id="printBtn" onclick="window.print()" disabled>列印標籤</button>
+            <button class="btn-general" onclick="processData('GENERAL')">轉換 (通用版)</button>
+            <button class="btn-mystery" onclick="processData('MYSTERY')">轉換 (神秘版)</button>
+            <button class="btn-print" id="printBtn" onclick="window.print()" disabled>列印 56 格標籤</button>
+        </div>
+
+        <!-- 轉換預覽區塊 -->
+        <div id="previewContainer">
+            <h3>目前標籤排版預覽 (第一格)</h3>
+            <div class="preview-box" id="previewContent"></div>
+            <p style="color:var(--success-color); font-weight:bold; margin-top:10px; font-size:14px;">請確認資料與排版無誤後再按下列印</p>
         </div>
     </div>
 
@@ -141,6 +184,15 @@ ID： A123456780
     <div id="printArea"></div>
 
     <script>
+        // 懸浮視窗控制
+        function showModal(message) {
+            document.getElementById('modalText').innerText = message;
+            document.getElementById('customModal').style.display = 'flex';
+        }
+        function closeModal() {
+            document.getElementById('customModal').style.display = 'none';
+        }
+
         // 核心資料解析
         function extractPatientData(rawText) {
             const result = { mrn: "", name: "", bed: "", idNumber: "", dob: "", isValid: false };
@@ -182,10 +234,15 @@ ID： A123456780
             const errorMsgBox = document.getElementById('errorMsg');
             const printBtn = document.getElementById('printBtn');
             const printArea = document.getElementById('printArea');
+            const previewContainer = document.getElementById('previewContainer');
+            const previewContent = document.getElementById('previewContent');
 
+            // 初始化重置
             errorMsgBox.style.display = 'none';
+            previewContainer.style.display = 'none';
             printBtn.disabled = true;
             printArea.innerHTML = ""; 
+            previewContent.innerHTML = "";
 
             const data = extractPatientData(rawText);
             if (!data.isValid) {
@@ -194,68 +251,96 @@ ID： A123456780
                 return;
             }
 
-            // 根據模式決定渲染數量與內容
-            let cellCount = 0;
+            const cellCount = 56; // 總格數維持 56 格
             const fragment = document.createDocumentFragment();
 
-            if (mode === 'GENERAL') {
-                // 通用版本：僅 病歷號/姓名/生日/身分證，共 56 格
-                cellCount = 56;
-                const line1 = `${data.mrn} &nbsp; ${data.name}`;
-                const line2 = `${data.dob} &nbsp; ${data.idNumber}`;
+            // 定義兩種字串格式
+            const generalLine1 = `${data.mrn} &nbsp; ${data.name}`;
+            const generalLine2 = `${data.dob} &nbsp; ${data.idNumber}`;
+            
+            const mysteryLine1 = `${data.bed} &nbsp; ${data.name}`;
+            const mysteryLine2 = `${data.mrn} &nbsp; ${data.dob}`;
 
+            if (mode === 'GENERAL') {
+                // 通用版：56 格全部相同
                 for (let i = 0; i < cellCount; i++) {
                     const cell = document.createElement('div');
                     cell.className = 'label-cell';
                     cell.innerHTML = `
-                        <div class="print-text">${line1}</div>
-                        <div class="print-text">${line2}</div>
+                        <div class="print-text">${generalLine1}</div>
+                        <div class="print-text">${generalLine2}</div>
                     `;
                     fragment.appendChild(cell);
                 }
+
+                // 產生預覽畫面
+                previewContent.innerHTML = `
+                    <div class="print-text">${generalLine1}</div>
+                    <div class="print-text">${generalLine2}</div>
+                `;
+
             } 
             else if (mode === 'MYSTERY') {
-                // 神秘版本：SICU專用，含床號與條碼，僅印一列(4格)
-                alert("建議僅在SICU內使用");
-                cellCount = 4;
-                const line1 = `${data.bed} &nbsp; ${data.name}`;
-                const line2 = `${data.mrn} &nbsp; ${data.dob}`;
+                // 跳出客製化懸浮警示
+                showModal("請遵守三讀五對～\n強烈建議僅在SICU內使用，轉病人前記得銷毀～");
 
+                // 神秘版：前 4 格為條碼床號版，後 52 格為通用版
                 for (let i = 0; i < cellCount; i++) {
                     const cell = document.createElement('div');
                     cell.className = 'label-cell';
                     
-                    // 為了確保版面不亂，使用 svg 標籤接載條碼
-                    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-                    svg.id = `barcode-${i}`;
-                    svg.className = 'print-barcode';
+                    if (i < 4) {
+                        // 前四格 (帶有 Barcode 與床號)
+                        const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                        svg.id = `barcode-${i}`;
+                        svg.className = 'print-barcode';
 
-                    cell.innerHTML = `
-                        <div class="print-text" style="font-size:12px;">${line1}</div>
-                        <div class="print-text" style="font-size:12px;">${line2}</div>
-                    `;
-                    cell.appendChild(svg);
+                        cell.innerHTML = `
+                            <div class="print-text" style="font-size:12px;">${mysteryLine1}</div>
+                            <div class="print-text" style="font-size:12px;">${mysteryLine2}</div>
+                        `;
+                        cell.appendChild(svg);
+                    } else {
+                        // 剩下 52 格 (通用文字)
+                        cell.innerHTML = `
+                            <div class="print-text">${generalLine1}</div>
+                            <div class="print-text">${generalLine2}</div>
+                        `;
+                    }
                     fragment.appendChild(cell);
                 }
+
+                // 產生預覽畫面 (呈現第一格神秘版)
+                previewContent.innerHTML = `
+                    <div class="print-text" style="font-size:12px;">${mysteryLine1}</div>
+                    <div class="print-text" style="font-size:12px;">${mysteryLine2}</div>
+                    <svg id="preview-barcode" class="print-barcode"></svg>
+                `;
             }
 
             printArea.appendChild(fragment);
 
-            // 若為神秘版本，補畫 Barcode
+            // 若為神秘版本，補畫所有出現的 Barcode (包含列印區與預覽區)
             if (mode === 'MYSTERY') {
-                for (let i = 0; i < cellCount; i++) {
-                    JsBarcode(`#barcode-${i}`, data.mrn, {
-                        format: "CODE128",
-                        width: 1.5,
-                        height: 30,
-                        displayValue: false, // 隱藏下方文字，節省高度
-                        margin: 1
-                    });
+                const barcodeOptions = {
+                    format: "CODE128",
+                    width: 1.5,
+                    height: 30,
+                    displayValue: false, 
+                    margin: 1
+                };
+
+                // 繪製列印區前四格
+                for (let i = 0; i < 4; i++) {
+                    JsBarcode(`#barcode-${i}`, data.mrn, barcodeOptions);
                 }
+                // 繪製預覽區
+                JsBarcode(`#preview-barcode`, data.mrn, barcodeOptions);
             }
 
+            // 顯示預覽區並解鎖列印按鈕
+            previewContainer.style.display = 'block';
             printBtn.disabled = false;
-            printBtn.innerText = `列印標籤 (${mode === 'GENERAL' ? '56格' : '4格'})`;
         }
     </script>
 </body>
