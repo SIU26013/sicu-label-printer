@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>護理標籤轉換與列印系統</title>
+    <!-- 引入 JsBarcode 套件 -->
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
+    <style>
+        /* 螢幕顯示樣式 */
+        body {
+            font-family: 'Microsoft JhengHei', Arial, sans-serif;
+            background-color: #f4f7f6;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            font-size: 14px;
+            padding: 10px;
+            box-sizing: border-box;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            resize: vertical;
+        }
+        .btn-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 4px;
+            color: white;
+            font-weight: bold;
+        }
+        .btn-convert { background-color: #0056b3; }
+        .btn-convert:hover { background-color: #004494; }
+        .btn-print { background-color: #28a745; display: none; }
+        .btn-print:hover { background-color: #218838; }
+        
+        .preview-box {
+            border: 2px dashed #0056b3;
+            padding: 15px;
+            background-color: #e9f2fb;
+            margin-bottom: 20px;
+            display: none;
+            text-align: center;
+        }
+        
+        #printArea {
+            display: none;
+        }
+
+        /* A4 列印專屬樣式 (14列 x 4欄 = 56格) */
+        @media print {
+            @page {
+                size: A4;
+                margin: 5mm; 
+            }
+            body {
+                background-color: white;
+                padding: 0;
+                margin: 0;
+            }
+            body > *:not(#printArea) {
+                display: none !important; /* 隱藏非列印區域 */
+            }
+            #printArea {
+                display: grid;
+                grid-template-columns: repeat(4, 1fr);
+                grid-template-rows: repeat(14, 1fr);
+                width: 200mm; 
+                height: 287mm; 
+                gap: 1mm;
+            }
+            .label-cell {
+                border: 0.5px dotted #ccc;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                justify-content: center;
+                align-items: center;
+                padding: 2mm;
+                overflow: hidden;
+            }
+            .label-text {
+                font-size: 11px;
+                font-weight: bold;
+                line-height: 1.3;
+                white-space: nowrap;
+            }
+            .barcode-svg {
+                max-width: 100%;
+                height: 22px; /* 控制條碼高度避免超出格子 */
+                margin-top: 2px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>護理標籤轉換工具</h2>
+    <textarea id="inputText">01234567 劉秉勳
+床號： SIU28
+ID： A123456780
+生日： 2000-08-15, 民國90年08月05日
+81 years old male
+血型： A , RH+ (2026/02/26)
+首次就診日期：2014-08-24，</textarea>
+
+    <div class="btn-group">
+        <button class="btn-convert" onclick="main()">轉換資料</button>
+        <button class="btn-print" id="btnPrint" onclick="window.print()">列印標籤 (A4)</button>
+    </div>
+
+    <div class="preview-box" id="previewBox">
+        <h3 style="margin-top: 0; color: #0056b3;">預覽區塊 (確認無誤後再列印)</h3>
+        <div id="previewText" style="font-family: monospace; font-size: 18px; font-weight: bold;"></div>
+        <svg id="previewBarcode"></svg>
+    </div>
+</div>
+
+<!-- 列印專用區塊 (56格) -->
+<div id="printArea"></div>
+
+<script>
+    // ==========================================
+    // Cell 1: 解析文字資料
+    // ==========================================
+    function parseText(rawText) {
+        console.log("--- 執行 Cell 1: parseText ---");
+        let data = { mrn: "", name: "", bed: "", id: "", dob: "" };
+
+        try {
+            // 擷取病歷號與姓名 (假設在第一行)
+            const firstLineMatch = rawText.match(/^(\d{8})\s+(.+)/);
+            if (firstLineMatch) {
+                data.mrn = firstLineMatch[1].trim();
+                data.name = firstLineMatch[2].trim();
+            }
+
+            // 擷取床號
+            const bedMatch = rawText.match(/床號：\s*([A-Za-z0-9]+)/);
+            if (bedMatch) data.bed = bedMatch[1].trim();
+
+            // 擷取身分證
+            const idMatch = rawText.match(/ID：\s*([A-Za-z0-9]+)/);
+            if (idMatch) data.id = idMatch[1].trim();
+
+            // 擷取民國生日
+            const dobMatch = rawText.match(/民國(\d+)年(\d+)月(\d+)日/);
+            if (dobMatch) {
+                const yy = dobMatch[1].padStart(2, '0');
+                const mm = dobMatch[2].padStart(2, '0');
+                const dd = dobMatch[3].padStart(2, '0');
+                data.dob = `${yy}/${mm}/${dd}`;
+            }
+
+            console.log("[Cell 1 成功] 資料解析完成:", data);
+            return data;
+        } catch (error) {
+            console.error("[Cell 1 錯誤] 解析資料失敗:", error);
+            return null;
+        }
+    }
+
+    // ==========================================
+    // Cell 2: 生成螢幕預覽與 56 格列印矩陣
+    // ==========================================
+    function generateUI(data) {
+        console.log("--- 執行 Cell 2: generateUI ---");
+        try {
+            if (!data || !data.mrn) {
+                alert("解析失敗，請確認病歷號與格式是否正確！");
+                console.warn("[Cell 2 警告] 無效的資料，終止渲染。");
+                return false;
+            }
+
+            // 更新預覽區
+            document.getElementById('previewBox').style.display = 'block';
+            document.getElementById('btnPrint').style.display = 'block';
+            
+            const formattedLine1 = `${data.mrn} ${data.name} ${data.dob}`;
+            const formattedLine2 = `${data.bed} &nbsp;&nbsp; ${data.id}`;
+            
+            document.getElementById('previewText').innerHTML = `${formattedLine1}<br>${formattedLine2}`;
+            
+            // 產生預覽條碼
+            JsBarcode("#previewBarcode", data.mrn, {
+                format: "CODE128",
+                width: 2,
+                height: 50,
+                displayValue: false
+            });
+
+            // 生成 56 格列印區
+            const printArea = document.getElementById('printArea');
+            printArea.innerHTML = ""; 
+
+            for (let i = 0; i < 56; i++) {
+                const cell = document.createElement('div');
+                cell.className = 'label-cell';
+                
+                cell.innerHTML = `
+                    <div class="label-text">${data.mrn} ${data.name} ${data.dob}</div>
+                    <div class="label-text">${data.bed} &nbsp;&nbsp; ${data.id}</div>
+                    <svg id="barcode-${i}" class="barcode-svg"></svg>
+                `;
+                printArea.appendChild(cell);
+            }
+
+            // 批次繪製 56 個小條碼
+            for (let i = 0; i < 56; i++) {
+                JsBarcode(`#barcode-${i}`, data.mrn, {
+                    format: "CODE128",
+                    width: 1.2, 
+                    height: 25, 
+                    displayValue: false,
+                    margin: 0
+                });
+            }
+
+            console.log("[Cell 2 成功] 預覽區與 A4 矩陣渲染完畢！共生成 56 格標籤。");
+            return true;
+        } catch (error) {
+            console.error("[Cell 2 錯誤] 渲染 UI 失敗:", error);
+            return false;
+        }
+    }
+
+    // ==========================================
+    // Cell 3: 主程式進入點 (Main Controller)
+    // ==========================================
+    function main() {
+        console.log("--- 執行 Cell 3: 主程式啟動 ---");
+        const rawText = document.getElementById('inputText').value;
+        
+        if (!rawText.trim()) {
+            console.warn("[Cell 3 警告] 輸入框為空");
+            return;
+        }
+
+        const parsedData = parseText(rawText);
+        generateUI(parsedData);
+        console.log("--- 轉換流程結束 ---");
+    }
+</script>
+
+</body>
+</html>
