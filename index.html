@@ -153,13 +153,13 @@
 
     <div class="app-container">
         <h1>ＳＩＣＵ專用病人貼紙列印系統</h1>
-        <p style="color:#666; margin-bottom: 1rem;">將 Onepage Profile 資料貼入下方。通用版產生滿版 56 格純文字；神秘版產生前 4 格含條碼與床號，後 52 格為通用版標籤。</p>
+        <p style="color:#666; margin-bottom: 1rem;">將 Onepage Profile 資料貼入下方。通用版產生滿版 56 格純文字；神秘版產生前 4 格含條碼與床號。</p>
         
         <textarea id="inputText" spellcheck="false">
 01234567 王大明
 床號： SIU13
 ID： A123456780
-生日： 2000-08-15, 民國90年08月05日
+生日： 2000-08-15, 民國90年08月15日
 81 years old male
 血型： A , RH+ (2026/02/26)
 首次就診日期：2014-08-24，</textarea>
@@ -169,7 +169,7 @@ ID： A123456780
         <div class="btn-group">
             <button class="btn-general" onclick="processData('GENERAL')">轉換 (通用版)</button>
             <button class="btn-mystery" onclick="processData('MYSTERY')">轉換 (神秘版)</button>
-            <button class="btn-print" id="printBtn" onclick="window.print()" disabled>列印 56 格標籤</button>
+            <button class="btn-print" id="printBtn" onclick="window.print()" disabled>列印標籤 (尚未選擇)</button>
         </div>
 
         <!-- 轉換預覽區塊 -->
@@ -241,6 +241,7 @@ ID： A123456780
             errorMsgBox.style.display = 'none';
             previewContainer.style.display = 'none';
             printBtn.disabled = true;
+            printBtn.innerText = "列印標籤 (尚未選擇)";
             printArea.innerHTML = ""; 
             previewContent.innerHTML = "";
 
@@ -282,7 +283,7 @@ ID： A123456780
             } 
             else if (mode === 'MYSTERY') {
                 // 跳出客製化懸浮警示
-                showModal("請遵守三讀五對～\n強烈建議僅在SICU內使用，\n轉病人前記得銷毀～\n適用場景：刷血糖機、貼麻管單...");
+                showModal("請遵守三讀五對～\n強烈建議僅在SICU內使用，轉病人前記得銷毀～");
 
                 // 神秘版：前 4 格為條碼床號版，後 52 格為通用版
                 for (let i = 0; i < cellCount; i++) {
@@ -338,9 +339,10 @@ ID： A123456780
                 JsBarcode(`#preview-barcode`, data.mrn, barcodeOptions);
             }
 
-            // 顯示預覽區並解鎖列印按鈕
+            // 顯示預覽區並解鎖列印按鈕，動態更新按鈕文字
             previewContainer.style.display = 'block';
             printBtn.disabled = false;
+            printBtn.innerText = mode === 'GENERAL' ? '列印 56 格標籤 (通用版)' : '列印 56 格標籤 (神秘版)';
         }
     </script>
 </body>
