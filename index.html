@@ -1,11 +1,10 @@
 <!--
 =============================================================================
 [部署指南 - GitHub Pages]
-1. 進入你的 sicu-label-printer GitHub 專案
-2. 開啟 index.html，點擊右上角的編輯 (鉛筆圖示)
-3. 將本段所有程式碼完全取代舊有內容
-4. 點擊 "Commit changes"
-5. 等待 1-2 分鐘後重新整理網頁，即可看到最新無條碼、滿版置中版本
+1. 在 GitHub 專案中，編輯 index.html
+2. 將本段所有程式碼完全取代舊有內容
+3. 點擊 "Commit changes"
+4. 網頁已徹底移除條碼依賴，為純前端文字排版系統
 =============================================================================
 -->
 <!DOCTYPE html>
@@ -13,7 +12,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SICU 臨床護理標籤轉換系統</title>
+    <title>SICU 臨床護理標籤轉換系統 (純文字版)</title>
     
     <style>
         /* ==========================================================================
@@ -171,21 +170,21 @@
             .label-cell {
                 display: flex;
                 flex-direction: column;
-                justify-content: center; /* 垂直置中 */
-                align-items: center;     /* 水平置中 */
+                justify-content: center; /* 垂直絕對置中 */
+                align-items: center;     /* 水平絕對置中 */
                 width: 100%;
                 height: 100%;
                 background-color: white;
-                border: none; /* 移除虛線 */
+                border: none; /* 移除虛線框 */
                 box-sizing: border-box;
-                padding: 2mm; /* 稍微內縮避免文字貼到物理裁切線 */
+                padding: 1mm; /* 稍微內縮避免文字貼到物理裁切線 */
             }
 
             .print-text-line {
                 font-family: 'Microsoft JhengHei', sans-serif;
-                font-size: 13px; /* 無條碼後空間變大，字體可適度放大 */
+                font-size: 14px; /* 因為沒有條碼，字體可以放大至最佳閱讀大小 */
                 font-weight: 900;
-                line-height: 1.5;
+                line-height: 1.6;
                 color: black;
                 text-align: center;
                 white-space: nowrap;
@@ -198,15 +197,15 @@
     <!-- 系統主介面 -->
     <div class="app-container">
         <div class="header-section">
-            <h1>SICU 護理標籤智慧排版系統</h1>
-            <p>將護理資訊系統 (NIS) 的文字資料貼入下方，系統將自動萃取關鍵資訊，並生成滿版無邊框的 56 格 A4 標籤供列印使用。</p>
+            <h1>SICU 護理標籤排版系統</h1>
+            <p>純文字精簡版。將護理資訊系統 (NIS) 的文字資料貼入下方，系統將生成滿版無邊框的 56 格 A4 標籤。</p>
         </div>
 
         <div class="input-group">
             <label for="inputText">請貼上病人資訊 (Raw Data)</label>
             <textarea id="inputText" spellcheck="false">
-01234567 劉秉勳
-床號： SIU28
+01234567 王大明
+床號： SIU13
 ID： A123456780
 生日： 2000-08-15, 民國90年08月05日
 81 years old male
@@ -231,7 +230,7 @@ ID： A123456780
                 <h3>臨床標籤預覽 (Preview)</h3>
                 <span class="status-badge">解析成功</span>
             </div>
-            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px; text-align: center;">請確認下方資料正確無誤，排版已設定為雙行置中。</p>
+            <p style="color: var(--text-muted); font-size: 0.9rem; margin-bottom: 15px; text-align: center;">請確認下方資料正確無誤，排版已設定為雙行完全置中。</p>
             
             <div class="single-label-preview">
                 <div id="previewText1" class="preview-text"></div>
@@ -246,11 +245,11 @@ ID： A123456780
     <script>
         /**
          * ==========================================================================
-         * Cell 1: 系統核心邏輯 (資料解析)
+         * Cell 1: 系統核心邏輯 (資料萃取)
          * ==========================================================================
          */
         function extractPatientData(rawText) {
-            console.log("[Cell 1 執行] 開始解析輸入文字...");
+            console.log("[Cell 1 執行] 開始解析輸入文字 (無條碼模式)...");
             const result = { mrn: "", name: "", bed: "", idNumber: "", dob: "", isValid: false };
 
             try {
@@ -320,7 +319,7 @@ ID： A123456780
 
             // 排版字串 (使用全形空格或 nbsp 調整間距)
             const line1Str = `${data.mrn} &nbsp; ${data.name} &nbsp; ${data.dob}`;
-            const line2Str = `${data.bed} &nbsp;&nbsp;&nbsp; ${data.idNumber}`;
+            const line2Str = `${data.bed} &nbsp;&nbsp;&nbsp;&nbsp; ${data.idNumber}`;
 
             // 渲染螢幕預覽
             document.getElementById('previewText1').innerHTML = line1Str;
@@ -336,7 +335,7 @@ ID： A123456780
 
         /**
          * ==========================================================================
-         * Cell 3: 建立 56 格滿版列印矩陣
+         * Cell 3: 建立 56 格滿版列印矩陣 (純文字，絕對置中)
          * ==========================================================================
          */
         function buildPrintGrid(line1, line2) {
@@ -365,11 +364,11 @@ ID： A123456780
             }
 
             printArea.appendChild(fragment);
-            console.log("[Cell 3 成功] 56 格 DOM 元素建構完畢！");
+            console.log("[Cell 3 成功] 56 格 DOM 元素建構完畢，準備列印！");
         }
 
         /**
-         * 呼叫作業系統列印
+         * 觸發作業系統列印
          */
         function triggerPrint() {
             console.log("[系統] 觸發列印功能...");
