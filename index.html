@@ -153,7 +153,7 @@
 
     <div class="app-container">
         <h1>ＳＩＣＵ專用病人貼紙列印系統</h1>
-        <p style="color:#666; margin-bottom: 1rem;">將 NIS 資料貼入下方。通用版產生滿版 56 格純文字；神秘版產生前 4 格含條碼與床號，後 52 格為通用版標籤。</p>
+        <p style="color:#666; margin-bottom: 1rem;">將 Onepage Profile 資料貼入下方。通用版產生滿版 56 格純文字；神秘版產生前 4 格含條碼與床號，後 52 格為通用版標籤。</p>
         
         <textarea id="inputText" spellcheck="false">
 01234567 王大明
@@ -282,7 +282,7 @@ ID： A123456780
             } 
             else if (mode === 'MYSTERY') {
                 // 跳出客製化懸浮警示
-                showModal("請遵守三讀五對～\n強烈建議僅在SICU內使用，轉病人前記得銷毀～");
+                showModal("請遵守三讀五對～\n強烈建議僅在SICU內使用，\n轉病人前記得銷毀～\n適用場景：刷血糖機、貼麻管單...");
 
                 // 神秘版：前 4 格為條碼床號版，後 52 格為通用版
                 for (let i = 0; i < cellCount; i++) {
