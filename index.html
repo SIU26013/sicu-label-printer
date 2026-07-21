@@ -1,506 +1,274 @@
 <!DOCTYPE html>
-
 <html lang="zh-TW">
-
 <head>
-
     <meta charset="UTF-8">
-
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
     <title>護理標籤轉換與列印系統</title>
-
-    <!-- 引入 JsBarcode 套件 (若醫院無外網，需將此 js 檔下載至同一個資料夾並改為本地路徑) -->
-
+    
+    <!-- 引入 JsBarcode 套件 -->
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
-
+    
     <style>
-
         /* 螢幕顯示樣式 */
-
         body {
-
             font-family: 'Microsoft JhengHei', Arial, sans-serif;
-
             background-color: #f4f7f6;
-
             padding: 20px;
-
         }
-
         .container {
-
             max-width: 800px;
-
             margin: 0 auto;
-
             background: white;
-
             padding: 20px;
-
             border-radius: 8px;
-
             box-shadow: 0 2px 10px rgba(0,0,0,0.1);
-
         }
-
         textarea {
-
             width: 100%;
-
             height: 180px;
-
             font-size: 14px;
-
             padding: 10px;
-
             box-sizing: border-box;
-
             margin-bottom: 15px;
-
             border: 1px solid #ccc;
-
             border-radius: 4px;
-
         }
-
         .btn-group {
-
             display: flex;
-
             gap: 10px;
-
             margin-bottom: 20px;
-
         }
-
         button {
-
             padding: 10px 20px;
-
             font-size: 16px;
-
             cursor: pointer;
-
             border: none;
-
             border-radius: 4px;
-
             color: white;
-
         }
-
         .btn-convert { background-color: #0056b3; }
-
         .btn-print { background-color: #28a745; }
-
         
-
         .preview-box {
-
             border: 2px dashed #0056b3;
-
             padding: 15px;
-
             background-color: #e9f2fb;
-
             margin-bottom: 20px;
-
-            display: none; /* 轉換後才顯示 */
-
+            display: none; 
         }
-
         
-
         #printArea {
-
-            display: none; /* 螢幕上隱藏，僅列印時顯示 */
-
+            display: none; 
         }
 
-
-
-        /* 列印專屬樣式 (A4 56格排版) */
-
+        /* ==========================================================================
+           列印專屬樣式 (精確 A4 物理尺寸滿版排版)
+           ========================================================================== */
         @media print {
-
             @page {
-
-                size: A4;
-
-                margin: 5mm; /* 邊界 */
-
+                size: A4 portrait;
+                /* 強制消除邊界。即使列印時選擇「預設」，也會被此設定覆寫為 0，確保 1:1 比例 */
+                margin: 0; 
             }
-
+            body, html {
+                margin: 0;
+                padding: 0;
+                background-color: white;
+            }
             body * {
-
-                visibility: hidden; /* 隱藏所有不需要列印的 UI */
-
+                visibility: hidden; 
             }
-
             #printArea, #printArea * {
-
                 visibility: visible;
-
             }
-
             #printArea {
-
                 position: absolute;
-
                 left: 0;
-
                 top: 0;
-
-                width: 200mm; /* A4 寬度扣除邊界 */
-
-                height: 287mm; /* A4 高度扣除邊界 */
-
+                width: 210mm; /* A4 嚴格物理寬度 */
+                height: 297mm; /* A4 嚴格物理高度 */
                 display: grid;
-
-                grid-template-columns: repeat(4, 1fr);
-
-                grid-template-rows: repeat(14, 1fr);
-
-                gap: 1mm;
-
-            }
-
-            .label-cell {
-
-                border: 0.5px solid #999;
-
+                /* 將 210mm 寬度平分為 4 欄 (210 / 4 = 52.5) */
+                grid-template-columns: repeat(4, 52.5mm);
+                /* 將 297mm 高度平分為 14 列 (297 / 14 ≈ 21.214) */
+                grid-template-rows: repeat(14, 21.214mm);
+                /* 移除所有網格間距，完全貼合實體貼紙的切割線 */
+                gap: 0;
                 box-sizing: border-box;
-
+            }
+            .label-cell {
+                /* 移除實體 border，避免印表機物理公差導致墨水印在切割線上 */
+                box-sizing: border-box;
                 display: flex;
-
                 flex-direction: column;
-
+                /* 垂直絕對置中 */
                 justify-content: center;
-
+                /* 水平絕對置中 */
                 align-items: center;
-
+                width: 100%;
+                height: 100%;
+                /* 安全內縮，避免文字貼齊邊緣被裁斷 */
                 padding: 1mm;
-
                 overflow: hidden;
-
             }
-
             .label-text {
-
                 font-size: 10px;
-
                 font-weight: bold;
-
                 line-height: 1.2;
-
                 white-space: nowrap;
-
             }
-
             .barcode-svg {
-
-                max-width: 100%;
-
-                height: auto;
-
+                max-width: 95%;
+                /* 強制限制條碼高度，避免將 flex 容器撐開導致偏移 */
+                height: 8mm !important; 
+                margin-top: 1px;
             }
-
         }
-
     </style>
-
 </head>
-
 <body>
 
-
-
 <div class="container">
-
     <h2>病人資訊轉換工具</h2>
-
     <p>請將 NIS 系統的文字貼入下方：</p>
-
     <textarea id="inputText">01234567 劉秉勳
-
 床號： SIU28
-
 ID： A123456780
-
 生日： 2000-08-15, 民國90年08月05日
-
 81 years old male
-
 血型： A , RH+ (2026/02/26)
-
 首次就診日期：2014-08-24，</textarea>
 
-
-
     <div class="btn-group">
-
         <button class="btn-convert" onclick="processData()">轉換 (Convert)</button>
-
         <button class="btn-print" onclick="window.print()">列印 A4 (Print)</button>
-
     </div>
-
-
 
     <div class="preview-box" id="previewBox">
-
         <h3>轉換結果預覽 (請確認無誤後再列印)</h3>
-
         <div id="previewText" style="font-family: monospace; font-size: 16px; font-weight: bold;"></div>
-
         <svg id="previewBarcode"></svg>
-
     </div>
-
 </div>
 
-
-
 <!-- 存放 56 格標籤的列印區塊 -->
-
 <div id="printArea"></div>
 
-
-
 <script>
-
     // ==========================================
-
     // Cell 1: 核心資料解析邏輯
-
     // ==========================================
-
     function parsePatientData(rawText) {
-
         console.log("[Cell 1 執行] 開始解析輸入文字...");
-
         let data = { mrn: "未知", name: "未知", bed: "未知", id: "未知", dob: "未知" };
 
-
-
         try {
-
             const lines = rawText.split('\n').map(line => line.trim());
-
             
-
             // 擷取第一行: 病歷號與姓名
-
             if (lines.length > 0) {
-
                 const firstLineParts = lines[0].split(/\s+/);
-
                 if (firstLineParts.length >= 2) {
-
                     data.mrn = firstLineParts[0];
-
                     data.name = firstLineParts[1];
-
                 }
-
             }
-
-
 
             // 擷取床號
-
             const bedMatch = rawText.match(/床號：\s*([A-Za-z0-9]+)/);
-
             if (bedMatch) data.bed = bedMatch[1];
 
-
-
             // 擷取身分證字號
-
             const idMatch = rawText.match(/ID：\s*([A-Za-z0-9]+)/);
-
             if (idMatch) data.id = idMatch[1];
 
-
-
             // 擷取民國生日 (提取數字並補零)
-
             const dobMatch = rawText.match(/民國(\d{1,3})年(\d{1,2})月(\d{1,2})日/);
-
             if (dobMatch) {
-
                 const yy = dobMatch[1].padStart(2, '0');
-
                 const mm = dobMatch[2].padStart(2, '0');
-
                 const dd = dobMatch[3].padStart(2, '0');
-
                 data.dob = `${yy}/${mm}/${dd}`;
-
             }
-
             
-
             console.log(`[Cell 1 成功] 擷取資料: ${data.mrn}, ${data.name}, ${data.bed}, ${data.id}, ${data.dob}`);
-
             return data;
-
         } catch (error) {
-
             console.error("[Cell 1 錯誤] 解析過程發生異常:", error);
-
             return data;
-
         }
-
     }
 
-
-
     // ==========================================
-
     // Cell 2: 渲染預覽區塊與 56 格列印矩陣
-
     // ==========================================
-
     function generateGrid(data) {
-
         console.log("[Cell 2 執行] 開始建構 14x4 排版與產生 Barcode...");
-
         
-
         // 1. 更新螢幕預覽區
-
         document.getElementById('previewBox').style.display = 'block';
-
         document.getElementById('previewText').innerHTML = 
-
             `${data.mrn} ${data.name} ${data.dob}<br>${data.bed} &nbsp;&nbsp; ${data.id}`;
-
         
-
         JsBarcode("#previewBarcode", data.mrn, {
-
             format: "CODE128",
-
             width: 2,
-
             height: 40,
-
             displayValue: false
-
         });
 
-
-
         // 2. 建構列印專用的 56 格陣列
-
         const printArea = document.getElementById('printArea');
-
         printArea.innerHTML = ""; // 清空舊資料
 
-
-
         for (let i = 0; i < 56; i++) {
-
             const cell = document.createElement('div');
-
             cell.className = 'label-cell';
-
             
-
             // 建立文字區塊 1
-
             const textLine1 = document.createElement('div');
-
             textLine1.className = 'label-text';
-
             textLine1.innerText = `${data.mrn} ${data.name} ${data.dob}`;
-
             
-
             // 建立文字區塊 2
-
             const textLine2 = document.createElement('div');
-
             textLine2.className = 'label-text';
-
             textLine2.innerHTML = `${data.bed} &nbsp;&nbsp; ${data.id}`;
-
             
-
             // 建立條碼 SVG
-
             const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-
             svg.id = `barcode-${i}`;
-
             svg.className = 'barcode-svg';
 
-
-
             cell.appendChild(textLine1);
-
             cell.appendChild(textLine2);
-
             cell.appendChild(svg);
-
             printArea.appendChild(cell);
-
         }
-
-
 
         // 批次繪製 56 個條碼
-
         for (let i = 0; i < 56; i++) {
-
             JsBarcode(`#barcode-${i}`, data.mrn, {
-
                 format: "CODE128",
-
                 width: 1.5, // 調整條碼寬度以適應小格子
-
                 height: 25, // 調整條碼高度
-
                 displayValue: false,
-
                 margin: 2
-
             });
-
         }
-
         
-
         console.log("[Cell 2 成功] A4 矩陣與條碼全部渲染完畢！");
-
     }
 
-
-
     // ==========================================
-
     // 進入點函數 (Button Click Event)
-
     // ==========================================
-
     function processData() {
-
         const rawText = document.getElementById('inputText').value;
-
         const parsedData = parsePatientData(rawText);
-
         generateGrid(parsedData);
-
     }
-
 </script>
 
-
-
 </body>
-
-</html> 
-
+</html>
