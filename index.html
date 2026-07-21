@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>護理標籤轉換與列印系統</title>
-    <!-- 引入 JsBarcode 套件 -->
+    <!-- 引入 JsBarcode 套件 (若醫院無外網，需將此 js 檔下載至同一個資料夾並改為本地路徑) -->
     <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.0/dist/JsBarcode.all.min.js"></script>
     <style>
         /* 螢幕顯示樣式 */
@@ -53,18 +53,18 @@
             padding: 15px;
             background-color: #e9f2fb;
             margin-bottom: 20px;
-            display: none;
+            display: none; /* 轉換後才顯示 */
         }
         
         #printArea {
-            display: none;
+            display: none; /* 螢幕上隱藏，僅列印時顯示 */
         }
 
-        /* 列印專屬樣式 (A4 56格精確排版) */
+        /* 列印專屬樣式 (A4 56格精確文字置中排版) */
         @media print {
             @page {
                 size: A4 portrait;
-                margin: 5mm; /* 上下左右各 5mm 邊界 */
+                margin: 5mm; /* 邊界 5mm */
             }
             body {
                 background: none;
@@ -72,7 +72,7 @@
                 margin: 0;
             }
             body * {
-                visibility: hidden;
+                visibility: hidden; /* 隱藏所有不需要列印的 UI */
             }
             #printArea, #printArea * {
                 visibility: visible;
@@ -84,10 +84,9 @@
                 width: 200mm;   /* 210mm - 10mm */
                 height: 287mm;  /* 297mm - 10mm */
                 display: grid;
-                /* 改用毫米精確固定每列每行，避免小數點誤差累積 */
                 grid-template-columns: repeat(4, 50mm);
                 grid-template-rows: repeat(14, 20.5mm);
-                gap: 0; /* 移除 gap 避免擠壓頁面 */
+                gap: 0; /* 移除 gap 避免累加高度造成下半部跑板 */
                 box-sizing: border-box;
             }
             .label-cell {
@@ -96,12 +95,12 @@
                 border: 0.5px solid #999;
                 box-sizing: border-box;
                 
-                /* 強制正中央對齊關鍵屬性 */
+                /* 強制格子內部所有元件上下左右置中 */
                 display: flex;
                 flex-direction: column;
-                justify-content: center;
-                align-items: center;
-                text-align: center;
+                justify-content: center; /* 垂直置中 */
+                align-items: center;     /* 水平置中 */
+                text-align: center;      /* 文字對齊置中 */
                 
                 padding: 1mm;
                 overflow: hidden;
@@ -109,17 +108,20 @@
                 break-inside: avoid;
             }
             .label-text {
-                font-size: 9px; /* 微調字級避免壓擠條碼 */
+                width: 100%;
+                font-size: 9px;
                 font-weight: bold;
-                line-height: 1.1;
+                line-height: 1.2;
                 white-space: nowrap;
+                text-align: center; /* 確保每列文字內容置中 */
                 margin: 0;
                 padding: 0;
             }
             .barcode-svg {
                 max-width: 95%;
-                height: 10mm; /* 固定條碼顯示高度 */
-                margin-top: 1px;
+                height: 10mm;
+                display: block;
+                margin: 1px auto 0 auto; /* 條碼圖像水平置中 */
             }
         }
     </style>
@@ -154,14 +156,16 @@ ID： A123456780
 
 <script>
     // ==========================================
-    // Cell 1: 核心資料解析邏輯
+    // Cell 1: 核心資料解析邏輯 (保留原功能)
     // ==========================================
     function parsePatientData(rawText) {
+        console.log("[Cell 1 執行] 開始解析輸入文字...");
         let data = { mrn: "未知", name: "未知", bed: "未知", id: "未知", dob: "未知" };
 
         try {
             const lines = rawText.split('\n').map(line => line.trim());
             
+            // 擷取第一行: 病歷號與姓名
             if (lines.length > 0) {
                 const firstLineParts = lines[0].split(/\s+/);
                 if (firstLineParts.length >= 2) {
@@ -170,12 +174,15 @@ ID： A123456780
                 }
             }
 
+            // 擷取床號
             const bedMatch = rawText.match(/床號：\s*([A-Za-z0-9]+)/);
             if (bedMatch) data.bed = bedMatch[1];
 
+            // 擷取身分證字號
             const idMatch = rawText.match(/ID：\s*([A-Za-z0-9]+)/);
             if (idMatch) data.id = idMatch[1];
 
+            // 擷取民國生日 (提取數字並補零)
             const dobMatch = rawText.match(/民國(\d{1,3})年(\d{1,2})月(\d{1,2})日/);
             if (dobMatch) {
                 const yy = dobMatch[1].padStart(2, '0');
@@ -184,17 +191,20 @@ ID： A123456780
                 data.dob = `${yy}/${mm}/${dd}`;
             }
             
+            console.log(`[Cell 1 成功] 擷取資料: ${data.mrn}, ${data.name}, ${data.bed}, ${data.id}, ${data.dob}`);
             return data;
         } catch (error) {
-            console.error("解析過程發生異常:", error);
+            console.error("[Cell 1 錯誤] 解析過程發生異常:", error);
             return data;
         }
     }
 
     // ==========================================
-    // Cell 2: 渲染預覽區塊與 56 格列印矩陣
+    // Cell 2: 渲染預覽區塊與 56 格列印矩陣 (保留原功能)
     // ==========================================
     function generateGrid(data) {
+        console.log("[Cell 2 執行] 開始建構 14x4 排版與產生 Barcode...");
+        
         // 1. 更新螢幕預覽區
         document.getElementById('previewBox').style.display = 'block';
         document.getElementById('previewText').innerHTML = 
@@ -209,20 +219,23 @@ ID： A123456780
 
         // 2. 建構列印專用的 56 格陣列
         const printArea = document.getElementById('printArea');
-        printArea.innerHTML = ""; 
+        printArea.innerHTML = ""; // 清空舊資料
 
         for (let i = 0; i < 56; i++) {
             const cell = document.createElement('div');
             cell.className = 'label-cell';
             
+            // 建立文字區塊 1
             const textLine1 = document.createElement('div');
             textLine1.className = 'label-text';
             textLine1.innerText = `${data.mrn} ${data.name} ${data.dob}`;
             
+            // 建立文字區塊 2
             const textLine2 = document.createElement('div');
             textLine2.className = 'label-text';
             textLine2.innerHTML = `${data.bed} &nbsp;&nbsp; ${data.id}`;
             
+            // 建立條碼 SVG
             const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
             svg.id = `barcode-${i}`;
             svg.className = 'barcode-svg';
@@ -233,18 +246,23 @@ ID： A123456780
             printArea.appendChild(cell);
         }
 
-        // 批次繪製 56 個條碼 (微調尺寸以適應 20.5mm 高度的格子)
+        // 批次繪製 56 個條碼
         for (let i = 0; i < 56; i++) {
             JsBarcode(`#barcode-${i}`, data.mrn, {
                 format: "CODE128",
-                width: 1.2,     // 稍微調窄條碼線寬
-                height: 20,     // 降低條碼本身高度，確保內容不拉高容器
+                width: 1.2,
+                height: 20,
                 displayValue: false,
-                margin: 0       // 移除條碼周圍內距
+                margin: 0
             });
         }
+        
+        console.log("[Cell 2 成功] A4 矩陣與條碼全部渲染完畢！");
     }
 
+    // ==========================================
+    // 進入點函數 (Button Click Event)
+    // ==========================================
     function processData() {
         const rawText = document.getElementById('inputText').value;
         const parsedData = parsePatientData(rawText);
